@@ -12,4 +12,17 @@ impl<T> Channel<T> {
             item_ready: Condvar::new()
         }
     }
+
+    pub fn send(&self, message: T) {
+        self.queue.lock().unwrap().push_back(message);
+        self.item_ready.notify_one();
+    }
+
+    pub fn receive(&self) -> T {
+        let mut guard = self.queue.lock().unwrap();
+        while guard.is_empty() {
+            guard = self.item_ready.wait(guard).unwrap();
+        }
+        guard.pop_front().unwrap()
+    }
 }
