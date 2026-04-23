@@ -1,8 +1,9 @@
-use std::sync::Mutex;
+use std::collections::VecDeque;
+use std::sync::{Condvar, Mutex};
 
 pub struct Channel<T> {
     queue: Mutex<VecDeque<T>>,
-    item_ready: Condvar
+    item_ready: Condvar,
 }
 
 impl<T> Channel<T> {
@@ -18,7 +19,7 @@ impl<T> Channel<T> {
         self.item_ready.notify_one();
     }
 
-    pub fn receive(&self) -> T {
+    pub fn receive(&self) -> T {    
         let mut guard = self.queue.lock().unwrap();
         while guard.is_empty() {
             guard = self.item_ready.wait(guard).unwrap();
