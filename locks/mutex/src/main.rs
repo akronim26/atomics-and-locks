@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut};
 use std::sync::atomic::Ordering::{Acquire, Relaxed, Release};
 use std::{cell::UnsafeCell, sync::atomic::AtomicU32};
 
-use atomic_wait::{wait, wake_one};
+use atomic_wait::{wait, wake_all, wake_one};
 
 pub struct Mutex<T> {
     // 0: unlocked
@@ -58,5 +58,43 @@ impl<T> Drop for MutexGuard<'_, T> {
         if self.mutex.state.swap(0, Release) == 2 {
             wake_one(&self.mutex.state);
         }
+    }
+}
+
+pub struct Condvar {
+    counter: AtomicU32,
+}
+
+impl Default for Condvar {
+    fn default() -> Self {
+        Self {
+            counter: AtomicU32::new(0),
+        }
+    }
+}
+
+impl Condvar {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn notify_one(&self) {
+        self.counter.fetch_add(1, Relaxed);
+        wake_one(&self.counter);
+    }
+
+    pub fn notify_all(&self) {
+        self.counter.fetch_add(1, Relaxed);
+        wake_all(&self.counter);
+    }
+
+    pub fn wait<'a, T>(&self, guard: MutexGuard<'a, T>) -> MutexGuard<'a, T> {
+        let counter = self.counter.load(Relaxed);
+
+        let mutex = guard.mutex;
+        drop(guard);
+
+        wait(&self.counter, counter);
+        mutex.lock()
     }
 }
